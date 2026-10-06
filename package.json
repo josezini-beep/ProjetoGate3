@@ -2,5 +2,18 @@
   "dependencies": {
     "app": "^0.1.0",
     "express": "^5.2.1"
+  },
+  "compilerOptions": {
+    "target": "ES6",
+    "module": "commonjs",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "start": "node dist/src/server.js",
+    "watch": "tsc -w"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6"
   }
 }

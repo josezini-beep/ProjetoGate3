@@ -1,6 +1,11 @@
+import express from "express";
 
+const app = express();
 
-// Inicia o servidor
-app.listen(3000,function(){
-    console.log("Server is running on port 3000");
+app.get("/saude", (req, res) => {
+  res.json({ status: "ok" });
+});
+
+app.listen(3000, () => {
+  console.log("Servidor rodando na porta 3000");
 });
