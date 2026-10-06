@@ -1,5 +1,6 @@
 import express from "express";
 import pool from "./db";
+import Decimal from "decimal.js";
 
 const app = express();
 
