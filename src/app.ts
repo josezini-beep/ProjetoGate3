@@ -21,7 +21,23 @@ app.get("/simulacoes", async (req, res) => {
 
 // Cadastra uma simulação.
 app.post("/simulacoes", async (req, res) => {
-  const { uc, cpf, encargos, kwh, valor_kwh } = req.body ?? {};
+  const {
+    uc,
+    cpf,
+    encargos,
+    impostos,
+    kwh,
+    valor_kwh,
+    desconto_percentual
+  } = req.body ?? {};
+
+  const valores = [
+    encargos,
+    impostos,
+    kwh,
+    valor_kwh,
+    desconto_percentual
+  ];
 
   if (
     typeof uc !== "string" ||
@@ -29,26 +45,76 @@ app.post("/simulacoes", async (req, res) => {
     uc.length > 30 ||
     typeof cpf !== "string" ||
     !/^\d{11}$/.test(cpf) ||
-    typeof encargos !== "number" ||
-    !Number.isFinite(encargos) ||
+    !valores.every(
+      (valor) => typeof valor === "number" && Number.isFinite(valor)
+    ) ||
     encargos < 0 ||
-    typeof kwh !== "number" ||
-    !Number.isFinite(kwh) ||
+    impostos < 0 ||
     kwh <= 0 ||
-    typeof valor_kwh !== "number" ||
-    !Number.isFinite(valor_kwh) ||
-    valor_kwh <= 0
+    valor_kwh <= 0 ||
+    desconto_percentual < 0 ||
+    desconto_percentual > 100
   ) {
     res.status(400).json({ erro: "Dados inválidos." });
     return;
   }
 
+  // Confere os limites e as casas decimais das colunas.
+  const limites = [
+    { valor: encargos, casas: 2, maximo: "9999999999.99" },
+    { valor: impostos, casas: 2, maximo: "9999999999.99" },
+    { valor: kwh, casas: 3, maximo: "999999999.999" },
+    { valor: valor_kwh, casas: 6, maximo: "999999.999999" },
+    { valor: desconto_percentual, casas: 2, maximo: "100" }
+  ];
+
+  if (
+    limites.some(({ valor, casas, maximo }) => {
+      const decimal = new Decimal(valor);
+      return decimal.decimalPlaces() > casas || decimal.gt(maximo);
+    })
+  ) {
+    res.status(400).json({
+      erro: "Valor acima do limite ou com casas decimais demais."
+    });
+    return;
+  }
+
   try {
+    // Desconto apenas sobre a energia.
+    const valorEnergia = new Decimal(kwh).times(valor_kwh);
+
+    const economiaMensal = valorEnergia
+      .times(desconto_percentual)
+      .dividedBy(100)
+      .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+
+    // Projeção com a mesma economia nos 12 meses.
+    const economiaAnual = economiaMensal.times(12);
+
+    if (economiaAnual.gt("9999999999.99")) {
+      res.status(400).json({ erro: "Economia acima do limite permitido." });
+      return;
+    }
+
     const resultado = await pool.query(
-      `INSERT INTO simulacoes (uc, cpf, encargos, kwh, valor_kwh)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING *`,
-      [uc.trim(), cpf, encargos, kwh, valor_kwh]
+      `INSERT INTO simulacoes (
+        uc, cpf, encargos, impostos, kwh, valor_kwh,
+        desconto_percentual, economia_mensal, economia_anual
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *`,
+      [
+        uc.trim(),
+        cpf,
+        encargos,
+        impostos,
+        kwh,
+        valor_kwh,
+        desconto_percentual,
+        economiaMensal.toFixed(2),
+        economiaAnual.toFixed(2)
+      ]
     );
 
     res.status(201).json(resultado.rows[0]);
