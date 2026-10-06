@@ -14,6 +14,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const db_1 = __importDefault(require("./db"));
+const decimal_js_1 = __importDefault(require("decimal.js"));
 const app = (0, express_1.default)();
 app.use(express_1.default.json());
 // Lista todas as simulações.
@@ -62,7 +63,7 @@ app.post("/simulacoes", (req, res) => __awaiter(void 0, void 0, void 0, function
         { valor: desconto_percentual, casas: 2, maximo: "100" }
     ];
     if (limites.some(({ valor, casas, maximo }) => {
-        const decimal = new Decimal(valor);
+        const decimal = new decimal_js_1.default(valor);
         return decimal.decimalPlaces() > casas || decimal.gt(maximo);
     })) {
         res.status(400).json({
@@ -72,11 +73,11 @@ app.post("/simulacoes", (req, res) => __awaiter(void 0, void 0, void 0, function
     }
     try {
         // Desconto apenas sobre a energia.
-        const valorEnergia = new Decimal(kwh).times(valor_kwh);
+        const valorEnergia = new decimal_js_1.default(kwh).times(valor_kwh);
         const economiaMensal = valorEnergia
             .times(desconto_percentual)
             .dividedBy(100)
-            .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+            .toDecimalPlaces(2, decimal_js_1.default.ROUND_HALF_UP);
         // Projeção com a mesma economia nos 12 meses.
         const economiaAnual = economiaMensal.times(12);
         if (economiaAnual.gt("9999999999.99")) {
